@@ -1,4 +1,4 @@
-use super::shared::{field_rename_annotation, keyword_replace};
+use super::shared::{field_rename_annotation, keyword_replace, unique_replace};
 use crate::{
     codegen_options::GraphQLClientCodegenOptions,
     query::{BoundQuery, UsedTypes},
@@ -37,10 +37,15 @@ fn generate_struct(
     let safe_name = keyword_replace(normalized_name);
     let struct_name = Ident::new(safe_name.as_ref(), Span::call_site());
 
-    let fields = input.fields.iter().map(|(field_name, field_type)| {
+    let mut fields: Vec<TokenStream> = vec![];
+    let mut field_names: Vec<String> = vec![];
+    for field in input.fields.iter() {
+        let (field_name, field_type) = field;
+
         let safe_field_name = keyword_replace(field_name.to_snake_case());
-        let annotation = field_rename_annotation(field_name, safe_field_name.as_ref());
-        let name_ident = Ident::new(safe_field_name.as_ref(), Span::call_site());
+        let unique_safe_field_name = unique_replace(safe_field_name, field_names.clone());
+        let annotation = field_rename_annotation(field_name, unique_safe_field_name.as_ref());
+        let name_ident = Ident::new(unique_safe_field_name.as_ref(), Span::call_site());
         let normalized_field_type_name = options
             .normalization()
             .field_type(field_type.id.name(query.schema));
@@ -63,11 +68,12 @@ fn generate_struct(
             field_type_tokens
         };
 
-        quote!(
+        field_names.push(unique_safe_field_name.to_string());
+        fields.push(quote!(
             #optional_skip_serializing_none
             #annotation pub #name_ident: #field_type
-        )
-    });
+        ));
+    }
 
     quote! {
         #variable_derives

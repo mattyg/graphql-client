@@ -20,6 +20,22 @@ pub(crate) fn keyword_replace<'a>(needle: impl Into<Cow<'a, str>>) -> Cow<'a, st
     }
 }
 
+/// Given a field name and a list of field names already in use, produces
+/// an altered field name to ensure its uniqueness.
+pub(crate) fn unique_replace<'a>(
+    field_name: impl Into<Cow<'a, str>>,
+    previous_field_names: Vec<String>,
+) -> Cow<'a, str> {
+    let field_name = field_name.into();
+    match previous_field_names.binary_search(&field_name.as_ref().to_string()) {
+        Ok(index) => {
+            let unique_field_name = [previous_field_names[index].as_ref(), "_"].concat();
+            unique_replace(unique_field_name, previous_field_names)
+        }
+        Err(_) => field_name,
+    }
+}
+
 /// Given the GraphQL schema name for an object/interface/input object field and
 /// the equivalent rust name, produces a serde annotation to map them during
 /// (de)serialization if it is necessary, otherwise an empty TokenStream.
